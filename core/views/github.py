@@ -7,11 +7,11 @@ from typing import Dict, Optional, Tuple
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from core.llm_client import flow_test_planner, review_pr
-from github.service import get_pr_diff, get_pr_latest_commit_diff
+from core.services.github import get_pr_diff, get_pr_latest_commit_diff
 from rest_framework.response import Response
-from github.types import GithubPRChanged
+from core.views.github import GithubPRChanged
 from core.types import PRReviewResponse
-from github.utils import (
+from core.utils import (
     GITHUB_COMMIT_INLINE_COMMENT_URL_TEMPLATE,
     generate_jwt,
     get_installation_token,

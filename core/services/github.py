@@ -1,4 +1,4 @@
-from github.types import (
+from core.views.github import (
     GithubCommitDetail,
     GithubCommitList,
     GithubPRChanged,
