@@ -264,7 +264,11 @@ class GitHubCommitVerification(Schema):
     verified_at: Optional[str]
 
 
-class GitHubCommitDetails(Schema):
+class GitHubCommitInfo(Schema):
+    """
+    Core commit information (the nested 'commit' object in GitHub API responses).
+    Contains author, committer, message, tree, and verification details.
+    """
     author: GitHubCommitAuthor
     committer: GitHubCommitAuthor
     message: str
@@ -302,7 +306,7 @@ class GitHubCommitFile(Schema):
 class GithubCommit(Schema):
     sha: str
     node_id: str
-    commit: GitHubCommitDetails
+    commit: GitHubCommitInfo
     url: str
     html_url: str
     comments_url: str
@@ -319,7 +323,7 @@ class GithubCommitDetail(Schema):
 
     sha: str
     node_id: str
-    commit: GitHubCommitDetails
+    commit: GitHubCommitInfo
     url: str
     html_url: str
     comments_url: str

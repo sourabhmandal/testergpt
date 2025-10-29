@@ -1,6 +1,6 @@
 from django.urls import path
 
-from core.views.github import github_webhook, health_check
+from github.controller import github_webhook, health_check
 
 urlpatterns = [
     path("webhook", github_webhook, name="github_webhook"),

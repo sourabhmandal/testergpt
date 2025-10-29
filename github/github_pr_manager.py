@@ -1,126 +1,95 @@
-"""
-Github related integrations
-"""
-
+from core.types import (
+    GithubCommitDetail,
+    GithubCommitList,
+    GithubPRChanged,
+    ReviewCommentList,
+)
 import requests
-from typing import Dict, Optional, Tuple
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from core.llm_client import flow_test_planner, review_pr
-from core.services.github import get_pr_diff, get_pr_latest_commit_diff
-from rest_framework.response import Response
-from core.views.github import GithubPRChanged
+from typing import Dict, Optional
+from unidiff import PatchSet
 from core.types import PRReviewResponse
-from core.utils import (
+from github.auth_utils import (
     GITHUB_COMMIT_INLINE_COMMENT_URL_TEMPLATE,
     generate_jwt,
     get_installation_token,
 )
-from unidiff import PatchSet
 
 
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def health_check(request):
-    return Response(
-        {"status": "ok"}, status=200, headers={"ngrok-skip-browser-warning": "<>"}
-    )
+def get_pr_latest_commit_diff(pr: GithubPRChanged) -> str:
+    """
+    Get the latest commit diff using GitHub API (more accurate than PR diff)
+    """
+    if not pr or not pr.pull_request:
+        raise ValueError("Invalid pull request data provided")
+
+    commits_url = pr.pull_request.commits_url
+    if not commits_url:
+        raise ValueError("Pull request commits URL not found")
+
+    response = requests.get(commits_url)
+    response.raise_for_status()  # Raise an exception for bad status codes
+
+    commit_list = GithubCommitList(**response.json())
+
+    if not commit_list.commits:
+        raise ValueError("No commits found in the pull request")
+    latest_commit = commit_list.commits[-1]
+    if not latest_commit or not latest_commit.sha:
+        raise ValueError("Latest commit data is invalid")
+
+    diff_url = latest_commit.commit.url
+    response = requests.get(diff_url)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    response_data = response.json()
+    response_data = GithubCommitDetail(**response_data)
+    patch = [PatchSet(file.patch) for file in response_data.files if file.patch]
+    pr_line_data = ""
+
+    for patched_file in patch:
+        pr_line_data += f"File: {patched_file.path}\n"
+        for hunk in patched_file:
+            for line in hunk:
+                pr_line_data += f"{line.line_type}: {line.value.strip()}\n"
+
+    print(f"PR Lines: {pr_line_data}")
+    return pr_line_data
 
 
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def github_webhook(request):
-    event = request.headers.get("X-GitHub-Event", "unknown")
-    delivery = request.headers.get("X-GitHub-Delivery", "unknown")
+def get_pr_diff(pr: GithubPRChanged) -> ReviewCommentList:
+    if not pr or not pr.pull_request:
+        raise ValueError("Invalid pull request data provided")
 
-    # handle events
-    print(f"Received event={event} delivery={delivery}")
-    if event == "ping":
-        return Response({"msg": "pong"}, status=200)
+    diff_url = pr.pull_request.diff_url
+    if not diff_url:
+        raise ValueError("Pull request diff URL not found")
 
-    # PR Opened for first time
-    if event == "pull_request" and request.data.get("action") == "opened":
-        try:
-            payload = GithubPRChanged(**request.data)
-            print(
-                f"✅ Successfully parsed webhook payload for PR #{payload.number}: {payload.pull_request.title}"
-            )
-        except Exception as e:
-            print(f"Failed to parse webhook payload: {e}")
-            print(
-                f"Request data keys: {list(request.data.keys()) if hasattr(request, 'data') else 'No data'}"
-            )
-            return Response({"error": "Invalid payload structure"}, status=400)
+    response = requests.get(diff_url)
+    response.raise_for_status()  # Raise an exception for bad status codes
 
-        if not payload.pull_request.state == "open":
-            print(f"PR #{payload.number} is not open, skipping processing")
-            return Response({"msg": "PR not open, skipping"}, status=200)
+    patch = PatchSet(response.text)
+    pr_line_data = ""
 
-        # Fetch diff
-        try:
-            print(f"🔍 Fetching diff content for PR #{payload.number}")
-            diff_text = get_pr_diff(payload)
-            print(f"📄 Retrieved diff content ({len(diff_text)} characters)")
+    for patched_file in patch:
+        pr_line_data += f"File: {patched_file.path}\n"
+        for hunk in patched_file:
+            for line in hunk:
+                pr_line_data += f"{line.line_type}: {line.value.strip()}\n"
+    return pr_line_data
 
-            # ai
-            print(f"🤖 Running AI review on diff...")
-            review_response = review_pr(diff=diff_text)
-            print(
-                f"📝 AI review completed with {len(review_response.issues) if review_response.issues else 0} issues found"
-            )
 
-            post_pr_comments(payload, review_response=review_response)
-            print(f"✅ Successfully processed PR #{payload.number}")
-        except Exception as e:
-            print(f"Error processing pull request: {e}")
-            return Response({"error": "Failed to process pull request"}, status=500)
-    # New commit pushed to existing PR
-    elif event == "pull_request" and request.data.get("action") == "synchronize":
-        try:
-            print(f"🔍 Fetching diff content for PR #{payload.number}")
-            diff_text = get_pr_latest_commit_diff(payload)
-            print(f"📄 Retrieved diff content ({len(diff_text)} characters)")
+def get_pr_comments(pr: GithubPRChanged) -> str:
+    if not pr or not pr.pull_request:
+        raise ValueError("Invalid pull request data provided")
 
-            # ai-review
-            print(f"🤖 Running AI review on diff...")
-            review_response = review_pr(diff=diff_text)
-            test_plan = flow_test_planner(diff=diff_text)
-            print(
-                f"📝 AI review completed with {len(review_response.issues) if review_response.issues else 0} issues found"
-            )
-            print(test_plan)
-            post_pr_comments(payload, review_response=review_response)
-            print(f"✅ Successfully processed PR #{payload.number}")
-        except Exception as e:
-            print(f"Failed to parse webhook payload: {e}")
-            print(
-                f"Request data keys: {list(request.data.keys()) if hasattr(request, 'data') else 'No data'}"
-            )
-            return Response({"error": "Invalid payload structure"}, status=400)
+    review_comments_url = pr.pull_request.review_comments_url
+    if not review_comments_url:
+        raise ValueError("Pull request review comments URL not found")
 
-        if not payload.pull_request.state == "open":
-            print(f"PR #{payload.number} is not open, skipping processing")
-            return Response({"msg": "PR not open, skipping"}, status=200)
+    response = requests.get(review_comments_url)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    review_comment_list = ReviewCommentList(**response.json())
 
-        # Fetch diff
-        try:
-            print(f"🔍 Fetching diff content for PR #{payload.number}")
-            diff_text = get_pr_latest_commit_diff(payload)
-            print(f"📄 Retrieved diff content ({len(diff_text)} characters)")
-
-            # ai
-            print(f"🤖 Running AI review on diff...")
-            review_response = review_pr(diff=diff_text)
-            print(
-                f"📝 AI review completed with {len(review_response.issues) if review_response.issues else 0} issues found"
-            )
-
-            post_pr_comments(payload, review_response=review_response)
-            print(f"✅ Successfully processed PR #{payload.number}")
-        except Exception as e:
-            print(f"Error processing pull request: {e}")
-            return Response({"error": "Failed to process pull request"}, status=500)
-    return Response("", status=204)
+    return review_comment_list
 
 
 def post_pr_comments(payload: GithubPRChanged, review_response: PRReviewResponse):

@@ -1,7 +1,6 @@
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
-from github.types import GithubPRChanged
 from testergpt.settings import settings
 from core.types import PRReviewResponse
 
@@ -110,7 +109,6 @@ def flow_test_planner(diff: str, model="gemini-2.5-pro") -> PRReviewResponse:
             summary=f"Error occurred during syntax and semantic analysis: {str(e)}",
         )
         return fallback_response
-
 
 def flow_syntax_and_semantic_check(
     diff: str, model="gemini-2.5-pro"
