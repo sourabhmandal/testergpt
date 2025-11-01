@@ -8,7 +8,7 @@ import requests
 from typing import Dict, Optional
 from unidiff import PatchSet
 from core.types import PRReviewResponse
-from github.auth_utils import (
+from src.github.auth_utils import (
     GITHUB_COMMIT_INLINE_COMMENT_URL_TEMPLATE,
     generate_jwt,
     get_installation_token,
@@ -52,28 +52,6 @@ def get_pr_latest_commit_diff(pr: GithubPRChanged) -> str:
                 pr_line_data += f"{line.line_type}: {line.value.strip()}\n"
 
     print(f"PR Lines: {pr_line_data}")
-    return pr_line_data
-
-
-def get_pr_diff(pr: GithubPRChanged) -> ReviewCommentList:
-    if not pr or not pr.pull_request:
-        raise ValueError("Invalid pull request data provided")
-
-    diff_url = pr.pull_request.diff_url
-    if not diff_url:
-        raise ValueError("Pull request diff URL not found")
-
-    response = requests.get(diff_url)
-    response.raise_for_status()  # Raise an exception for bad status codes
-
-    patch = PatchSet(response.text)
-    pr_line_data = ""
-
-    for patched_file in patch:
-        pr_line_data += f"File: {patched_file.path}\n"
-        for hunk in patched_file:
-            for line in hunk:
-                pr_line_data += f"{line.line_type}: {line.value.strip()}\n"
     return pr_line_data
 
 
@@ -144,7 +122,9 @@ def post_pr_comments(payload: GithubPRChanged, review_response: PRReviewResponse
             emoji = {"error": "🚫", "warning": "⚠️", "suggestion": "💡"}.get(
                 issue.type, "ℹ️"
             )
-            comment_body = f"{emoji} **{issue.type.title()}** ({issue.severity} severity)\\n\\n{issue.message}"
+            comment_body = f"""{emoji} **{issue.type.title()}** ({issue.severity} severity)
+            
+            {issue.message}"""
 
             # Parse the line number from the issue
             try:

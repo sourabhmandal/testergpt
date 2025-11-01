@@ -24,21 +24,6 @@ def get_llm(model="gemini-2.5-pro", temperature=0.2):
         raise
 
 
-def review_pr(diff: str) -> PRReviewResponse:
-    """Send a diff to LLM and return structured JSON response"""
-    if not diff or not diff.strip():
-        raise ValueError("Diff content is empty or invalid")
-
-    try:
-        return flow_syntax_and_semantic_check(diff, model="gemini-2.5-pro")
-    except Exception as e:
-        logging.error(f"Error in review_pr: {e}")
-        # Return a fallback response with proper structure
-        fallback_response = PRReviewResponse(
-            issues=[], summary=f"Error occurred during code review: {str(e)}"
-        )
-        return fallback_response
-
 
 def tester_planner(diff: str) -> PRReviewResponse:
     """Send a diff to LLM and return structured JSON response"""

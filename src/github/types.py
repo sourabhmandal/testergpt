@@ -1,9 +1,6 @@
 from __future__ import annotations
 from typing import List, Optional
-from ninja import Schema
-from typing import List, Optional
-from pydantic import RootModel, Field
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, RootModel, Field
 
 
 class Comment(BaseModel):
@@ -23,7 +20,7 @@ class DiffIssue(BaseModel):
     type: str = Field(..., description="Type of issue: error, warning, or suggestion")
     line: str = Field(..., description="Line number or range where the issue occurs")
     message: str = Field(..., description="Description of the issue")
-    severity: str = Field(..., description="Severity level: high, medium, or low")
+    severity: int = Field(..., description="Severity level: between 1 (low) to 10 (high)")
     file: str = Field(..., description="File path where the issue occurs")
 
 
@@ -36,7 +33,7 @@ class PRReviewResponse(BaseModel):
     summary: str = Field(..., description="Overall assessment of the changes")
 
 
-class GitHubUser(Schema):
+class GitHubUser(BaseModel):
     login: str
     id: int
     node_id: str
@@ -58,7 +55,7 @@ class GitHubUser(Schema):
     site_admin: bool
 
 
-class GitHubLicense(Schema):
+class GitHubLicense(BaseModel):
     key: str
     name: str
     spdx_id: str
@@ -66,7 +63,7 @@ class GitHubLicense(Schema):
     node_id: str
 
 
-class GitHubRepository(Schema):
+class GitHubRepository(BaseModel):
     id: int
     node_id: str
     name: str
@@ -159,7 +156,7 @@ class GitHubRepository(Schema):
     merge_commit_title: Optional[str] = None
 
 
-class GitHubBranch(Schema):
+class GitHubBranch(BaseModel):
     label: str
     ref: str
     sha: str
@@ -167,7 +164,7 @@ class GitHubBranch(Schema):
     repo: GitHubRepository
 
 
-class GitHubLinks(Schema):
+class GitHubLinks(BaseModel):
     self: dict  # {"href": str}
     html: dict  # {"href": str}
     issue: dict  # {"href": str}
@@ -178,7 +175,7 @@ class GitHubLinks(Schema):
     statuses: dict  # {"href": str}
 
 
-class GitHubPullRequest(Schema):
+class GitHubPullRequest(BaseModel):
     url: str
     id: int
     node_id: str
@@ -229,12 +226,12 @@ class GitHubPullRequest(Schema):
     changed_files: int
 
 
-class GitHubInstallation(Schema):
+class GitHubInstallation(BaseModel):
     id: int
     node_id: str
 
 
-class GithubPRChanged(Schema):
+class GithubPRRequest(BaseModel):
     action: str
     number: int
     pull_request: GitHubPullRequest
@@ -245,18 +242,18 @@ class GithubPRChanged(Schema):
     installation: GitHubInstallation
 
 
-class GitHubCommitAuthor(Schema):
+class GitHubCommitAuthor(BaseModel):
     name: str
     email: str
     date: str
 
 
-class GitHubCommitTree(Schema):
+class GitHubCommitTree(BaseModel):
     sha: str
     url: str
 
 
-class GitHubCommitVerification(Schema):
+class GitHubCommitVerification(BaseModel):
     verified: bool
     reason: str
     signature: Optional[str]
@@ -264,7 +261,7 @@ class GitHubCommitVerification(Schema):
     verified_at: Optional[str]
 
 
-class GitHubCommitInfo(Schema):
+class GitHubCommitInfo(BaseModel):
     """
     Core commit information (the nested 'commit' object in GitHub API responses).
     Contains author, committer, message, tree, and verification details.
@@ -278,19 +275,19 @@ class GitHubCommitInfo(Schema):
     verification: GitHubCommitVerification
 
 
-class GitHubCommitParent(Schema):
+class GitHubCommitParent(BaseModel):
     sha: str
     url: str
     html_url: str
 
 
-class GitHubCommitStats(Schema):
+class GitHubCommitStats(BaseModel):
     total: int
     additions: int
     deletions: int
 
 
-class GitHubCommitFile(Schema):
+class GitHubCommitFile(BaseModel):
     sha: str
     filename: str
     status: str
@@ -303,7 +300,7 @@ class GitHubCommitFile(Schema):
     patch: Optional[str] = None
 
 
-class GithubCommit(Schema):
+class GithubCommit(BaseModel):
     sha: str
     node_id: str
     commit: GitHubCommitInfo
@@ -315,7 +312,7 @@ class GithubCommit(Schema):
     parents: List[GitHubCommitParent]
 
 
-class GithubCommitDetail(Schema):
+class GithubCommitDetail(BaseModel):
     """
     Detailed GitHub commit information including file changes and statistics.
     Used for single commit API responses that include diff information.
@@ -352,7 +349,7 @@ class GithubCommitDetailList(RootModel[List[GithubCommitDetail]]):
     root: List[GithubCommitDetail]
 
 
-class GitHubReactions(Schema):
+class GitHubReactions(BaseModel):
     url: str
     total_count: int
     plus_one: int = Field(alias="+1")
@@ -365,13 +362,13 @@ class GitHubReactions(Schema):
     eyes: int
 
 
-class GitHubReviewCommentLinks(Schema):
+class GitHubReviewCommentLinks(BaseModel):
     self: dict  # {"href": str}
     html: dict  # {"href": str}
     pull_request: dict  # {"href": str}
 
 
-class ReviewComment(Schema):
+class ReviewComment(BaseModel):
     url: str
     pull_request_review_id: int
     id: int
@@ -407,3 +404,21 @@ class ReviewCommentList(RootModel[List[ReviewComment]]):
     """
 
     root: List[ReviewComment]
+
+
+class CodeFileDetails(BaseModel):
+    file_path: str
+    full_content: str
+    additions: List[str]
+    deletions: List[str]
+
+
+class CodeFileDetailsList(RootModel[List[CodeFileDetails]]):
+    """
+    Represents a list of code file details including path, content, and optional diff.
+    """
+
+    root: List[CodeFileDetails]
+
+class GithubPrDiffResponse(BaseModel):
+    diff_text: str
