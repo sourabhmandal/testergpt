@@ -1,7 +1,6 @@
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
-from github.types import GithubPRChanged
 from testergpt.settings import settings
 from core.types import PRReviewResponse
 
@@ -25,7 +24,8 @@ def get_llm(model="gemini-2.5-pro", temperature=0.2):
         raise
 
 
-def review_pr(diff: str) -> PRReviewResponse:
+
+def tester_planner(diff: str) -> PRReviewResponse:
     """Send a diff to LLM and return structured JSON response"""
     if not diff or not diff.strip():
         raise ValueError("Diff content is empty or invalid")
@@ -39,7 +39,61 @@ def review_pr(diff: str) -> PRReviewResponse:
             issues=[], summary=f"Error occurred during code review: {str(e)}"
         )
         return fallback_response
+    
+def flow_test_planner(diff: str, model="gemini-2.5-pro") -> PRReviewResponse:
+    """Perform syntax and semantic analysis on code diff"""
+    if not diff or not diff.strip():
+        raise ValueError("Diff content is empty or invalid")
 
+    try:
+        llm = get_llm(model)
+
+        # Create structured output LLM
+        structured_llm = llm.with_structured_output(PRReviewResponse)
+
+        template = """
+        You are an AI code test case planner. Focus specifically on generating comprehensive test cases for the provided git diff.
+
+        Diff:
+        ```diff
+        {diff}
+        ```
+        
+        TEST CASE PLANNING INSTRUCTIONS:
+        - Analyze all added/modified code (lines starting with '+')
+        - Identify key functionalities and edge cases
+        - Generate detailed test cases covering various scenarios
+        - Include input data, expected outputs, and any setup/teardown steps
+        - Ensure coverage of boundary conditions and error handling
+        - Consider performance and security aspects where applicable
+        
+        For each test case, specify:
+        - title: A concise title for the test case
+        - description: A detailed description of what the test case covers
+        - steps: Step-by-step instructions to execute the test case
+        - expected_result: The expected outcome of the test case
+        
+        Provide a summary focusing on the overall testing strategy and coverage.
+        """
+
+        prompt = ChatPromptTemplate.from_template(template)
+        chain = prompt | structured_llm
+        response = chain.invoke({"diff": diff})
+
+        if not response:
+            raise RuntimeError("Empty response from LLM")
+
+        # Response is already a PRReviewResponse object from structured output
+        return response
+
+    except Exception as e:
+        logging.error(f"Error in syntax_and_lint_check: {e}")
+        # Return a fallback response with proper structure
+        fallback_response = PRReviewResponse(
+            issues=[],
+            summary=f"Error occurred during syntax and semantic analysis: {str(e)}",
+        )
+        return fallback_response
 
 def flow_syntax_and_semantic_check(
     diff: str, model="gemini-2.5-pro"
