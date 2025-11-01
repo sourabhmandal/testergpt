@@ -22,15 +22,16 @@ async def github_webhook(req: Request, background_tasks: BackgroundTasks):
     # PR Opened for first time
     if event == "pull_request":
         try:
-            payload = GithubPRRequest(**req.data)
+            data = await req.json()
+            payload = GithubPRRequest(**data)
             if not payload.pull_request.state == "open":
                 print(f"PR #{payload.number} is not open, skipping processing")
                 return Response(content={"msg": "PR not open, skipping"}, status_code=200)
 
-            if req.data.get("action") in ["opened", "synchronize"]:
-                fresh_pr_review(payload, background_tasks)
+            if data.get("action") in ["opened", "synchronize"]:
+                await fresh_pr_review(payload, background_tasks)
 
-            # elif req.data.get("action") == "synchronize":
+            # elif data.get("action") == "synchronize":
             #     try:
             #         print(f"🔍 Fetching diff content for PR #{payload.number}")
             #         diff_text = get_pr_latest_commit_diff(payload)
@@ -75,5 +76,5 @@ async def github_webhook(req: Request, background_tasks: BackgroundTasks):
         
         except Exception as e:
             print(f"Error processing pull request: {e}")
-            return Response(content={"error": "Failed to process pull request"}, status_code=500)
+            return Response(content=str(e), status_code=500)
     return Response(content="", status_code=204)

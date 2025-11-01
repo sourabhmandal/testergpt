@@ -1,5 +1,6 @@
 
 import logging
+import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from src.config.env import settings
@@ -27,13 +28,18 @@ class LLMService:
                 raise
     
     def review_code_diff(self, code_diff_request: ReviewCodeDiffRequest) -> ReviewCodeDiffResponse:
-        if not code_diff_request.diff.strip():
-            raise ValueError("Diff content is empty or invalid")
-        structured_llm = self.llm.with_structured_output(ReviewCodeDiffResponse)
-        prompt = ChatPromptTemplate.from_template(FLOW_SYNTAX_AND_SEMANTIC_CHECK_PROMPT)
-        chain = prompt | structured_llm
-        response = chain.invoke({"diff": code_diff_request.diff})
+        try:
+            if not code_diff_request.diff.strip():
+                raise ValueError("Diff content is empty or invalid")
+            structured_llm = self.llm.with_structured_output(ReviewCodeDiffResponse)
+            prompt = ChatPromptTemplate.from_template(FLOW_SYNTAX_AND_SEMANTIC_CHECK_PROMPT)
+            chain = prompt | structured_llm
+            response = chain.invoke({"diff": code_diff_request.diff})
 
-        if not response:
-            raise RuntimeError("Empty response from LLM")
-        return response
+            print(response.model_dump_json())
+            if not response:
+                raise RuntimeError("Empty response from LLM")
+            return response
+        except Exception as e:
+            logger.error(f"Error: review_code_diff : {e}")
+            raise

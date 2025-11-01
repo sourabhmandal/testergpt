@@ -13,11 +13,18 @@ from src.github.types import GithubPRRequest, GithubPrDiffResponse, PRReviewResp
 logger = logging.getLogger(__name__)
 
 # ------------------------- GITHUB API ----------------------------- #
-def github_pr_diff_content(payload__pull_request__diff_url: str) -> GithubPrDiffResponse:
-    response = call_github_api(payload__pull_request__diff_url, HTTPMethod.GET)
-    response.raise_for_status()
-    print(f"Diff Response JSON: {response.json()}")
-    return GithubPrDiffResponse(**response.json())
+def github_pr_diff_content(payload__pull_request__diff_url: str, installation_id: int) -> GithubPrDiffResponse:
+    """Fetch PR diff content synchronously using requests.
+
+    This function is intentionally synchronous because it uses the
+    `requests` library. Callers that run inside an async event loop
+    should execute this in a thread (e.g. via asyncio.to_thread).
+    """
+    response = call_github_api(payload__pull_request__diff_url, HTTPMethod.GET, installation_id=installation_id)
+    if not response.text:
+        logger.warning("Received empty diff text from GitHub")
+
+    return GithubPrDiffResponse(diff_text=response.text)
 
 def post_pr_comments(payload: GithubPRRequest, review_response: PRReviewResponse):
     if not review_response.issues:
@@ -105,10 +112,9 @@ def post_pr_comments(payload: GithubPRRequest, review_response: PRReviewResponse
 
 # ----------------------- AUTH UTILITIES -------------------------- #
 
-def call_github_api(url: str, method: HTTPMethod, data: dict = None) -> requests.Response:
+def call_github_api(url: str, method: HTTPMethod, installation_id: int, data: dict = None) -> requests.Response:
     try:
         jwt_token = generate_jwt()
-        installation_id = data.installation.id
         installation_token = get_installation_token(jwt_token, installation_id)
         headers = {
             "Authorization": f"Bearer {installation_token}",
