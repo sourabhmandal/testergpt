@@ -36,7 +36,6 @@ class LLMService:
             chain = prompt | structured_llm
             response = chain.invoke({"diff": code_diff_request.diff})
 
-            print(response.model_dump_json())
             if not response:
                 raise RuntimeError("Empty response from LLM")
             return response
