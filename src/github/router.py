@@ -17,7 +17,7 @@ async def github_webhook(req: Request, background_tasks: BackgroundTasks):
     logger.info(f"Received event={event}")
 
     if event == "ping":
-        return Response({"msg": "pong"}, status_code=200)
+        return Response(content={"msg": "pong"}, status_code=200)
 
     # PR Opened for first time
     if event == "pull_request":
@@ -25,7 +25,7 @@ async def github_webhook(req: Request, background_tasks: BackgroundTasks):
             payload = GithubPRRequest(**req.data)
             if not payload.pull_request.state == "open":
                 print(f"PR #{payload.number} is not open, skipping processing")
-                return Response({"msg": "PR not open, skipping"}, status_code=200)
+                return Response(content={"msg": "PR not open, skipping"}, status_code=200)
 
             if req.data.get("action") in ["opened", "synchronize"]:
                 fresh_pr_review(payload, background_tasks)
@@ -51,11 +51,11 @@ async def github_webhook(req: Request, background_tasks: BackgroundTasks):
             #         print(
             #             f"Request data keys: {list(request.data.keys()) if hasattr(request, 'data') else 'No data'}"
             #         )
-            #         return Response({"error": "Invalid payload structure"}, status=400)
+            #         return Response(content={"error": "Invalid payload structure"}, status_code=400)
 
             #     if not payload.pull_request.state == "open":
             #         print(f"PR #{payload.number} is not open, skipping processing")
-            #         return Response({"msg": "PR not open, skipping"}, status=200)
+            #         return Response(content={"msg": "PR not open, skipping"}, status_code=200)
 
             #     # Fetch diff
             #     try:
@@ -75,5 +75,5 @@ async def github_webhook(req: Request, background_tasks: BackgroundTasks):
         
         except Exception as e:
             print(f"Error processing pull request: {e}")
-            return Response({"error": "Failed to process pull request"}, status_code=500)
-    return Response("", status_code=204)
+            return Response(content={"error": "Failed to process pull request"}, status_code=500)
+    return Response(content="", status_code=204)
